@@ -1,0 +1,60 @@
+name: dbt Run
+
+on:
+  # Run on schedule (daily at 0:00 AM UTC)
+  schedule:
+    - cron: '0 0 * * *'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+  
+  # Run on push to main (optional)
+  push:
+    branches:
+      - main
+    paths:
+      - 'allbridge/models/**'
+      - 'allbrid/dbt_project.yml'
+
+jobs:
+  dbt_run:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13.2'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Create profiles.yml
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml <<EOF
+          allbridge:
+            target: dev
+            outputs:
+              dev:
+                type: clickhouse
+                host: ${{ secrets.CLICKHOUSE_HOST }}
+                port: ${{ secrets.DB_PORT }}
+                user: ${{ secrets.DB_USER }}
+                password: ${{ secrets.DB_PASS }}
+                database: ${{ secrets.CLICKHOUSE_DATABASE }}
+                schema: ${{ secrets.CLICKHOUSE_SCHEMA }}
+                secure: false
+                verify: false
+          EOF
+      
+      - name: Install dbt packages
+        run: dbt deps --project-dir ./allbridge
+      
+      - name: Run dbt models
+        run: dbt run --project-dir ./allbridge
