@@ -1,0 +1,85 @@
+queries:
+  - name: allbridge
+    outputPath: ../public/allbridge.csv
+    query: |
+      SELECT *
+      FROM c_algorand.mart_bridge__monthly
+      ORDER BY month
+
+  - name: destination
+    outputPath: ../public/destination.csv
+    query: |
+      SELECT
+          CASE reinterpretAsUInt8(reverse(base64Decode(JSONExtractString(txn_extra, 'apaa', 4))))
+              WHEN 1  THEN 'Ethereum'
+              WHEN 2  THEN 'BNB Chain'
+              WHEN 3  THEN 'Tron'
+              WHEN 4  THEN 'Solana'
+              WHEN 5  THEN 'Polygon'
+              WHEN 6  THEN 'Arbitrum'
+              WHEN 7  THEN 'Stellar'
+              WHEN 8  THEN 'Avalanche'
+              WHEN 9  THEN 'Base'
+              WHEN 10 THEN 'OP Mainnet'
+              WHEN 11 THEN 'Celo'
+              WHEN 12 THEN 'Sonic'
+              WHEN 13 THEN 'Sui'
+              WHEN 14 THEN 'Unichain'
+              WHEN 17 THEN 'Linea'
+              ELSE concat('Chain ID: ', toString(reinterpretAsUInt8(reverse(base64Decode(JSONExtractString(txn_extra, 'apaa', 3))))))
+          END AS source_chain,
+          count() AS transfer_count,
+          sum(reinterpretAsUInt64(reverse(base64Decode(
+              JSONExtractString(txn_extra, 'apaa', 2)
+          )))) / 1000.0 AS total_usdc_received
+      FROM mainnet.txn
+      WHERE app_id = 3361283339
+        AND has(JSONExtract(txn_extra, 'apas', 'Array(Int64)'), 31566704)
+        AND JSONExtractString(txn_extra, 'apaa', 1) = '3kytSg=='
+      GROUP BY source_chain
+      ORDER BY total_usdc_received DESC
+
+  - name: source
+    outputPath: ../public/source.csv
+    query: |
+      WITH in_txn AS (
+          SELECT
+              round,
+              intra,
+              group,
+              CASE reinterpretAsUInt8(reverse(base64Decode(JSONExtractString(txn_extra, 'apaa', 3))))
+                  WHEN 1  THEN 'Ethereum'
+                  WHEN 2  THEN 'BNB Chain'
+                  WHEN 3  THEN 'Tron'
+                  WHEN 4  THEN 'Solana'
+                  WHEN 5  THEN 'Polygon'
+                  WHEN 6  THEN 'Arbitrum'
+                  WHEN 7  THEN 'Stellar'
+                  WHEN 8  THEN 'Avalanche'
+                  WHEN 9  THEN 'Base'
+                  WHEN 10 THEN 'OP Mainnet'
+                  WHEN 11 THEN 'Celo'
+                  WHEN 12 THEN 'Sonic'
+                  WHEN 13 THEN 'Sui'
+                  WHEN 14 THEN 'Unichain'
+                  WHEN 17 THEN 'Linea'
+                  ELSE concat('Chain ID: ', toString(reinterpretAsUInt8(reverse(base64Decode(JSONExtractString(txn_extra, 'apaa', 3))))))
+              END AS destination_chain
+          FROM mainnet.txn
+          WHERE app_id = 3361283339
+            AND has(JSONExtract(txn_extra, 'apas', 'Array(Int64)'), 31566704)
+            AND JSONExtractString(txn_extra, 'apaa', 1) != '3kytSg=='
+      )
+      SELECT
+          it.destination_chain,
+          count()             AS transfer_count,
+          sum(t.amount) / 1e6 AS total_usdc_sent
+      FROM mainnet.txn t
+      JOIN in_txn it
+          ON  t.round = it.round
+          AND t.intra = it.intra - 1
+          AND t.group = it.group
+      WHERE t.rcv_addr_id = fn_addr2id_main('KB2YJBRULWSHID77HLX4XKATV7CR56AQD7UCDXJQOXGA2BIXTD7JLKGRRU')
+        AND t.asset_id = 31566704
+      GROUP BY it.destination_chain
+      ORDER BY total_usdc_sent DESC
