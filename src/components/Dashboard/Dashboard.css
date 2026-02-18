@@ -94,8 +94,8 @@ h1 {
 .kpi-card.active-card {
     border-color: var(--accent-primary);
     background: linear-gradient(135deg,
-            rgba(0, 255, 229, 0.1),
-            rgba(76, 76, 77, 0.3));
+            rgba(204, 255, 250, 0.1),
+            rgba(179, 179, 179, 0.3));
 }
 
 .card-icon-wrapper {
