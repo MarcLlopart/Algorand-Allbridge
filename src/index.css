@@ -8,7 +8,7 @@
   --text-secondary: #ffffff;
   --accent-primary: #17cac6;
   --accent-secondary: #2d2df1;
-  --success: #27d17f;
+  --success: #008947;
   --error: #ff4d4d;
 
   --h1-gradient: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
@@ -17,7 +17,7 @@
 
 :root.light-mode {
   --bg-color: #f5f6fc;
-  --card-bg: rgba(221, 245, 244, 0.7);
+  --card-bg: rgba(243, 247, 246, 0.7);
   --card-border: rgba(0, 0, 0, 0.05);
   /* User requested numbers to be black in light mode */
   --text-primary: #2d2df1;
