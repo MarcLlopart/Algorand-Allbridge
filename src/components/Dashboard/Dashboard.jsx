@@ -6,6 +6,18 @@ import {
 import { ArrowUpRight, ArrowDownRight, Activity, Users, DollarSign, Sun, Moon, AlertTriangle } from 'lucide-react';
 import './Dashboard.css';
 
+// ─── Responsive hook ──────────────────────────────────────────────────────────
+
+const useWindowSize = () => {
+    const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+    useEffect(() => {
+        const handler = () => setSize({ width: window.innerWidth, height: window.innerHeight });
+        window.addEventListener('resize', handler);
+        return () => window.removeEventListener('resize', handler);
+    }, []);
+    return size;
+};
+
 // ─── Formatters ──────────────────────────────────────────────────────────────
 
 const formatCurrency = (value) => {
@@ -68,7 +80,6 @@ const parseMainCSV = (csvText) => {
     });
 };
 
-// source.csv  → col0: destination_chain, col1: transfer_count, col2: total_usdc_sent
 const parseSourceCSV = (csvText) => {
     const lines = csvText.trim().split('\n');
     return lines.slice(1)
@@ -83,7 +94,6 @@ const parseSourceCSV = (csvText) => {
         .filter(r => r.chain && r.value > 0);
 };
 
-// destination.csv → col0: source_chain, col1: transfer_count, col2: total_usdc_received
 const parseDestinationCSV = (csvText) => {
     const lines = csvText.trim().split('\n');
     return lines.slice(1)
@@ -100,14 +110,12 @@ const parseDestinationCSV = (csvText) => {
 
 // ─── Build recharts Sankey data ───────────────────────────────────────────────
 
-// Outflow: Algorand → each destination chain
 const buildOutflowSankey = (rows) => {
     const nodes = [{ name: 'Algorand' }, ...rows.map(r => ({ name: r.chain }))];
     const links = rows.map((r, i) => ({ source: 0, target: i + 1, value: r.value }));
     return { nodes, links };
 };
 
-// Inflow: each source chain → Algorand
 const buildInflowSankey = (rows) => {
     const algoIndex = rows.length;
     const nodes = [...rows.map(r => ({ name: r.chain })), { name: 'Algorand' }];
@@ -115,12 +123,15 @@ const buildInflowSankey = (rows) => {
     return { nodes, links };
 };
 
-// ─── Custom Sankey node ───────────────────────────────────────────────────────
+// ─── Custom Sankey node (responsive) ─────────────────────────────────────────
 
-const SankeyNode = ({ x, y, width, height, index, payload }) => {
+const SankeyNode = ({ x, y, width, height, index, payload, containerWidth }) => {
     const name = payload?.name || '';
     const color = chainColor(name);
-    const isRight = x > 300;
+    // Determine label side: nodes on the right half go right, others go left
+    const isRight = x > (containerWidth || 600) / 2;
+    const fontSize = containerWidth < 480 ? 10 : containerWidth < 768 ? 11 : 12;
+    const gap = containerWidth < 480 ? 5 : 8;
 
     return (
         <g>
@@ -129,11 +140,11 @@ const SankeyNode = ({ x, y, width, height, index, payload }) => {
                 fill={color} fillOpacity={0.95} radius={3}
             />
             <text
-                x={isRight ? x + width + 8 : x - 8}
+                x={isRight ? x + width + gap : x - gap}
                 y={y + height / 2}
                 textAnchor={isRight ? 'start' : 'end'}
                 dominantBaseline="middle"
-                style={{ fontSize: 12, fontWeight: 600, fill: 'var(--text-primary)' }}
+                style={{ fontSize, fontWeight: 600, fill: 'var(--text-primary)' }}
             >
                 {name}
             </text>
@@ -143,7 +154,7 @@ const SankeyNode = ({ x, y, width, height, index, payload }) => {
 
 // ─── Custom Sankey link ───────────────────────────────────────────────────────
 
-const SankeyLink = ({ sourceX, sourceY, sourceControlX, targetX, targetY, targetControlX, linkWidth, payload, index }) => {
+const SankeyLink = ({ sourceX, sourceY, sourceControlX, targetX, targetY, targetControlX, linkWidth, payload }) => {
     const sourceNode = payload?.source?.name || '';
     const targetNode = payload?.target?.name || '';
     const isAlgoSource = sourceNode === 'Algorand';
@@ -152,10 +163,7 @@ const SankeyLink = ({ sourceX, sourceY, sourceControlX, targetX, targetY, target
 
     return (
         <path
-            d={`
-                M${sourceX},${sourceY}
-                C${sourceControlX},${sourceY} ${targetControlX},${targetY} ${targetX},${targetY}
-            `}
+            d={`M${sourceX},${sourceY} C${sourceControlX},${sourceY} ${targetControlX},${targetY} ${targetX},${targetY}`}
             fill="none"
             stroke={color}
             strokeWidth={linkWidth}
@@ -191,7 +199,49 @@ const SankeyTooltip = ({ active, payload }) => {
     );
 };
 
-// ─── Volume Tooltip / Legend (unchanged) ─────────────────────────────────────
+// ─── Mobile fallback: ranked bar list for Sankey data ────────────────────────
+
+const SankeyMobileFallback = ({ rows, label }) => {
+    if (!rows || rows.length === 0) return null;
+    const sorted = [...rows].sort((a, b) => b.value - a.value);
+    const total = sorted.reduce((acc, r) => acc + r.value, 0);
+
+    return (
+        <div className="sankey-mobile-fallback">
+            {sorted.map((r) => {
+                const pct = total > 0 ? (r.value / total) * 100 : 0;
+                return (
+                    <div key={r.chain} className="sankey-mobile-row">
+                        <div className="sankey-mobile-header">
+                            <span className="sankey-mobile-chain">
+                                <span
+                                    className="sankey-mobile-dot"
+                                    style={{ backgroundColor: chainColor(r.chain) }}
+                                />
+                                {r.chain}
+                            </span>
+                            <span className="sankey-mobile-value">
+                                {formatCurrency(r.value)}
+                                <span className="sankey-mobile-pct">{pct.toFixed(1)}%</span>
+                            </span>
+                        </div>
+                        <div className="sankey-mobile-track">
+                            <div
+                                className="sankey-mobile-fill"
+                                style={{
+                                    width: `${pct}%`,
+                                    backgroundColor: chainColor(r.chain),
+                                }}
+                            />
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
+// ─── Volume Tooltip / Legend ──────────────────────────────────────────────────
 
 const VolumeTooltip = ({ active, payload, label }) => {
     if (!active || !payload || !payload.length) return null;
@@ -232,14 +282,74 @@ const VolumeLegend = ({ chartData }) => {
     );
 };
 
+// ─── Responsive Sankey wrapper ────────────────────────────────────────────────
+
+const ResponsiveSankeyChart = ({ data, rows, description, accentLabel }) => {
+    const { width } = useWindowSize();
+
+    // Below 520px use the mobile fallback entirely
+    if (width < 520) {
+        return (
+            <div>
+                <p className="sankey-description">
+                    Total USDC bridged{' '}
+                    <strong style={{ color: 'var(--accent-primary)' }}>{accentLabel}</strong>{' '}
+                    (all-time)
+                </p>
+                <SankeyMobileFallback rows={rows} />
+            </div>
+        );
+    }
+
+    // Responsive margins: shrink label gutters on smaller screens
+    const isTablet = width < 900;
+    const isSmall = width < 650;
+
+    const margin = isSmall
+        ? { top: 10, right: 100, bottom: 10, left: 100 }
+        : isTablet
+            ? { top: 10, right: 130, bottom: 10, left: 130 }
+            : { top: 10, right: 160, bottom: 10, left: 160 };
+
+    const chartHeight = isSmall ? 360 : 420;
+    const nodeWidth = isSmall ? 10 : 14;
+    const nodePadding = isSmall ? 12 : 18;
+
+    // Pass containerWidth into node via a wrapper
+    const NodeWithWidth = (props) => <SankeyNode {...props} containerWidth={width} />;
+
+    return (
+        <div>
+            <p className="sankey-description">
+                Total USDC bridged{' '}
+                <strong style={{ color: 'var(--accent-primary)' }}>{accentLabel}</strong>{' '}
+                (all-time)
+            </p>
+            <ResponsiveContainer width="100%" height={chartHeight}>
+                <Sankey
+                    data={data}
+                    nodePadding={nodePadding}
+                    nodeWidth={nodeWidth}
+                    margin={margin}
+                    node={<NodeWithWidth />}
+                    link={<SankeyLink />}
+                >
+                    <Tooltip content={<SankeyTooltip />} />
+                </Sankey>
+            </ResponsiveContainer>
+            <SankeyLegend rows={rows} />
+        </div>
+    );
+};
+
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 const TABS = ['Transactions', 'Users', 'Volume', 'Outflow', 'Inflow'];
 
 const Dashboard = () => {
     const [rawData, setRawData] = useState(null);
-    const [sourceData, setSourceData] = useState(null);   // source.csv rows
-    const [destData, setDestData] = useState(null);   // destination.csv rows
+    const [sourceData, setSourceData] = useState(null);
+    const [destData, setDestData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('Transactions');
     const [isDarkMode, setIsDarkMode] = useState(false);
@@ -249,7 +359,6 @@ const Dashboard = () => {
         else document.documentElement.classList.add('light-mode');
     }, [isDarkMode]);
 
-    // Fetch all three CSVs in parallel
     useEffect(() => {
         Promise.all([
             fetch('/allbridge.csv').then(r => r.text()),
@@ -285,7 +394,6 @@ const Dashboard = () => {
         };
     }, [rawData]);
 
-    // Sankey datasets
     const outflowSankey = useMemo(() => sourceData ? buildOutflowSankey(sourceData) : null, [sourceData]);
     const inflowSankey = useMemo(() => destData ? buildInflowSankey(destData) : null, [destData]);
 
@@ -309,8 +417,6 @@ const Dashboard = () => {
     }) : [];
 
     const accentColor = 'var(--accent-primary)';
-
-    // ── Chart renderer ────────────────────────────────────────────────────────
 
     const renderChart = () => {
         switch (activeTab) {
@@ -372,52 +478,24 @@ const Dashboard = () => {
                     </ResponsiveContainer>
                 );
 
-            // ── Outflow: Algorand → destination chains ────────────────────────
             case 'Outflow':
                 if (!outflowSankey) return <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>Loading outflow data…</div>;
                 return (
-                    <div>
-                        <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-                            Total USDC bridged <strong style={{ color: 'var(--accent-primary)' }}>out of Algorand</strong> by destination chain (all-time)
-                        </p>
-                        <ResponsiveContainer width="100%" height={420}>
-                            <Sankey
-                                data={outflowSankey}
-                                nodePadding={18}
-                                nodeWidth={14}
-                                margin={{ top: 10, right: 160, bottom: 10, left: 160 }}
-                                node={<SankeyNode />}
-                                link={<SankeyLink />}
-                            >
-                                <Tooltip content={<SankeyTooltip />} />
-                            </Sankey>
-                        </ResponsiveContainer>
-                        <SankeyLegend rows={sourceData} label="Outflow to" />
-                    </div>
+                    <ResponsiveSankeyChart
+                        data={outflowSankey}
+                        rows={sourceData}
+                        accentLabel="out of Algorand"
+                    />
                 );
 
-            // ── Inflow: source chains → Algorand ─────────────────────────────
             case 'Inflow':
                 if (!inflowSankey) return <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>Loading inflow data…</div>;
                 return (
-                    <div>
-                        <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-                            Total USDC bridged <strong style={{ color: 'var(--accent-primary)' }}>into Algorand</strong> by source chain (all-time)
-                        </p>
-                        <ResponsiveContainer width="100%" height={420}>
-                            <Sankey
-                                data={inflowSankey}
-                                nodePadding={18}
-                                nodeWidth={14}
-                                margin={{ top: 10, right: 160, bottom: 10, left: 160 }}
-                                node={<SankeyNode />}
-                                link={<SankeyLink />}
-                            >
-                                <Tooltip content={<SankeyTooltip />} />
-                            </Sankey>
-                        </ResponsiveContainer>
-                        <SankeyLegend rows={destData} label="Inflow from" />
-                    </div>
+                    <ResponsiveSankeyChart
+                        data={inflowSankey}
+                        rows={destData}
+                        accentLabel="into Algorand"
+                    />
                 );
 
             default:
@@ -497,18 +575,14 @@ const Dashboard = () => {
 
 // ─── Sankey chain legend ──────────────────────────────────────────────────────
 
-const SankeyLegend = ({ rows, label }) => {
+const SankeyLegend = ({ rows }) => {
     if (!rows) return null;
     const total = rows.reduce((acc, r) => acc + r.value, 0);
     return (
-        <div style={{
-            display: 'flex', flexWrap: 'wrap', gap: '10px 20px',
-            justifyContent: 'center', padding: '16px 8px 4px',
-            borderTop: '1px solid rgba(128,128,128,0.15)', marginTop: 8,
-        }}>
+        <div className="sankey-legend">
             {rows.map(r => (
-                <span key={r.chain} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-primary)' }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 2, flexShrink: 0, backgroundColor: chainColor(r.chain), display: 'inline-block' }} />
+                <span key={r.chain} className="sankey-legend-item">
+                    <span className="sankey-legend-dot" style={{ backgroundColor: chainColor(r.chain) }} />
                     <span style={{ fontWeight: 600 }}>{r.chain}</span>
                     <span style={{ color: 'var(--text-secondary)' }}>{formatCurrency(r.value)}</span>
                     <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>({((r.value / total) * 100).toFixed(1)}%)</span>
@@ -518,7 +592,7 @@ const SankeyLegend = ({ rows, label }) => {
     );
 };
 
-// ─── KPI Card (unchanged) ─────────────────────────────────────────────────────
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
 
 const Card = ({ title, value, delta, icon, isActive, onClick, formatValue = formatCurrency }) => {
     const isPositive = delta >= 0;

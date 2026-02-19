@@ -48,7 +48,6 @@
     background: rgba(255, 255, 255, 0.1);
 }
 
-
 h1 {
     font-size: clamp(1.2rem, 4vw, 1.8rem);
     text-align: center;
@@ -242,15 +241,124 @@ h1 {
     justify-content: center;
 }
 
-/* Responsive breakpoints */
+/* ─── Sankey: description text ────────────────────────────────────────────── */
+
+.sankey-description {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+/* ─── Sankey: desktop/tablet legend ──────────────────────────────────────── */
+
+.sankey-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    justify-content: center;
+    padding: 16px 8px 4px;
+    border-top: 1px solid rgba(128, 128, 128, 0.15);
+    margin-top: 8px;
+}
+
+.sankey-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-primary);
+}
+
+.sankey-legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    display: inline-block;
+}
+
+/* ─── Sankey: mobile fallback (horizontal bar list) ──────────────────────── */
+
+.sankey-mobile-fallback {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 8px 4px 16px;
+}
+
+.sankey-mobile-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sankey-mobile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+.sankey-mobile-chain {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-weight: 600;
+}
+
+.sankey-mobile-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    display: inline-block;
+}
+
+.sankey-mobile-value {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.sankey-mobile-pct {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    background: rgba(128, 128, 128, 0.15);
+    padding: 2px 6px;
+    border-radius: 20px;
+}
+
+.sankey-mobile-track {
+    width: 100%;
+    height: 8px;
+    background: rgba(128, 128, 128, 0.15);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.sankey-mobile-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s ease;
+    min-width: 2px;
+}
+
+/* ─── Responsive breakpoints ──────────────────────────────────────────────── */
+
 @media (max-width: 1200px) {
-    .kpi-grid-4 {
+    .kpi-grid-3 {
         grid-template-columns: repeat(2, 1fr);
     }
 }
 
 @media (max-width: 768px) {
-    .kpi-grid-4 {
+    .kpi-grid-3 {
         grid-template-columns: 1fr;
     }
 
@@ -261,11 +369,31 @@ h1 {
     .card-value {
         font-size: 1.5rem;
     }
+
+    /* Tighten up Sankey description on tablet */
+    .sankey-description {
+        font-size: 12px;
+        padding: 0 8px;
+    }
+
+    .sankey-legend-item {
+        font-size: 11px;
+    }
 }
 
 @media (min-width: 768px) {
     .dashboard-header {
         flex-direction: column;
+    }
+}
+
+@media (max-width: 520px) {
+
+    /* Mobile: hide the Recharts Sankey entirely, show fallback */
+    .sankey-description {
+        font-size: 12px;
+        padding: 0 4px;
+        margin-bottom: 12px;
     }
 }
 
@@ -296,13 +424,27 @@ h1 {
         gap: 1rem;
     }
 
+    .chart-section {
+        padding: 1rem;
+    }
+
     .chart-tabs {
         width: 100%;
+        display: flex;
+        flex-wrap: wrap;
         justify-content: center;
     }
 
     .chart-tab {
         padding: 6px 12px;
         font-size: 0.85rem;
+    }
+
+    .sankey-mobile-fallback {
+        gap: 12px;
+    }
+
+    .sankey-mobile-header {
+        font-size: 12px;
     }
 }
